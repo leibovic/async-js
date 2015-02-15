@@ -4,12 +4,12 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-// Simplified version of:
+// Inspired by:
 // http://hg.mozilla.org/mozilla-central/file/3f4673b89e04/mobile/android/chrome/content/Reader.js
 
 var Reader = {
 
-  parseDocumentFromURL: function(url, callback) {
+  getArticle: function(url, callback) {
     try {
       // First, try to find a cached parsed article in the DB
       this._getArticleFromCache(url, function(article) {

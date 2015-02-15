@@ -4,12 +4,12 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-// Current Firefox version here:
-// http://hg.mozilla.org/mozilla-central/file/ad3867772421/toolkit/components/reader/ReaderMode.jsm
+// Inspired by:
+// http://hg.mozilla.org/mozilla-central/file/tip/toolkit/components/reader/ReaderMode.jsm
 
 var Reader = {
 
-  parseDocumentFromURL: Task.async(function* (url) {
+  getArticle: Task.async(function* (url) {
     var article = yield this._getArticleFromCache(url);
     if (article) {
       return article;
