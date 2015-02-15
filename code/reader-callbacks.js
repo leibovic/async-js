@@ -28,6 +28,76 @@ var Reader = {
     }
   },
 
+  _downloadAndParseDocument: function Reader_downloadAndParseDocument(url, callback) {
+    try {
+      this._downloadDocument(url, function(doc) {
+        if (!doc) {
+          callback(null);
+          return;
+        }
+
+        this._readerParse(doc, function (article) {
+          if (!article) {
+            callback(null);
+            return;
+          }
+
+          callback(article);
+        }.bind(this));
+      }.bind(this));
+    } catch (e) {
+      console.error(e);
+      callback(null);
+    }
+  },
+
+  _downloadDocument: function Reader_downloadDocument(url, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onerror = evt => reject(evt.error);
+    xhr.responseType = "document";
+    xhr.onload = evt => {
+      if (xhr.status !== 200) {
+        callback(null);
+        return;
+      }
+
+      var doc = xhr.responseXML;
+      callback(doc);
+    }
+    xhr.send();
+  },
+
+  _readerParse: function Reader_readerParse(doc, callback) {
+    var worker = new Worker("readerWorker.js");
+    worker.onmessage = function (evt) {
+      var article = evt.data;
+      callback(article);
+    };
+
+    // Hacks to get URI details, since we don't have nsIURI in web content.
+    var l = document.createElement("a");
+    l.href = doc.documentURI;
+
+    try {
+      worker.postMessage({
+        uri: {
+          spec: l.href,
+          host: l.host,
+          prePath: l.protocol + "//" + l.host,
+          scheme: l.protocol.substr(0, l.protocol.indexOf(":")),
+          pathBase: l.protocol + "//" + l.host + l.pathname.substr(0, l.pathname.lastIndexOf("/") + 1)
+        },
+        doc: new XMLSerializer().serializeToString(doc)
+      });
+    } catch (e) {
+      console.error(e);
+      callback(null);
+    }
+  },
+
+  // IndexedDB cache
+
   getArticleFromCache: function Reader_getArticleFromCache(url, callback) {
     this._getCacheDB(function(cacheDB) {
       if (!cacheDB) {
@@ -91,72 +161,6 @@ var Reader = {
     }.bind(this));
   },
 
-  _readerParse: function Reader_readerParse(doc, callback) {
-    var worker = new Worker("readerWorker.js");
-    worker.onmessage = function (evt) {
-      var article = evt.data;
-      callback(article);
-    };
-
-    var l = document.createElement("a");
-    l.href = doc.documentURI;
-
-    try {
-      worker.postMessage({
-        uri: {
-          spec: l.href,
-          host: l.host,
-          prePath: l.protocol + "//" + l.host,
-          scheme: l.protocol.substr(0, l.protocol.indexOf(":")),
-          pathBase: l.protocol + "//" + l.host + l.pathname.substr(0, l.pathname.lastIndexOf("/") + 1)
-        },
-        doc: new XMLSerializer().serializeToString(doc)
-      });
-    } catch (e) {
-      console.error(e);
-      callback(null);
-    }
-  },
-
-  _downloadDocument: function Reader_downloadDocument(url, callback) {
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", url, true);
-    xhr.onerror = evt => reject(evt.error);
-    xhr.responseType = "document";
-    xhr.onload = evt => {
-      if (xhr.status !== 200) {
-        callback(null);
-        return;
-      }
-
-      var doc = xhr.responseXML;
-      callback(doc);
-    }
-    xhr.send();
-  },
-
-  _downloadAndParseDocument: function Reader_downloadAndParseDocument(url, callback) {
-    try {
-      this._downloadDocument(url, function(doc) {
-        if (!doc) {
-          callback(null);
-          return;
-        }
-
-        this._readerParse(doc, function (article) {
-          if (!article) {
-            callback(null);
-            return;
-          }
-
-          callback(article);
-        }.bind(this));
-      }.bind(this));
-    } catch (e) {
-      console.error(e);
-      callback(null);
-    }
-  },
 
   _getCacheDB: function Reader_getCacheDB(callback) {
     if (this._cacheDB) {
