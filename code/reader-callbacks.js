@@ -9,10 +9,10 @@
 
 var Reader = {
 
-  parseDocumentFromURL: function Reader_parseDocumentFromURL(url, callback) {
+  parseDocumentFromURL: function(url, callback) {
     try {
       // First, try to find a cached parsed article in the DB
-      this.getArticleFromCache(url, function(article) {
+      this._getArticleFromCache(url, function(article) {
         if (article) {
           callback(article);
           return;
@@ -28,7 +28,7 @@ var Reader = {
     }
   },
 
-  _downloadAndParseDocument: function Reader_downloadAndParseDocument(url, callback) {
+  _downloadAndParseDocument: function(url, callback) {
     try {
       this._downloadDocument(url, function(doc) {
         if (!doc) {
@@ -42,6 +42,8 @@ var Reader = {
             return;
           }
 
+          article.url = url;
+          this._storeArticleInCache(article, function(){});
           callback(article);
         }.bind(this));
       }.bind(this));
@@ -51,24 +53,24 @@ var Reader = {
     }
   },
 
-  _downloadDocument: function Reader_downloadDocument(url, callback) {
+  _downloadDocument: function(url, callback) {
     var xhr = new XMLHttpRequest();
     xhr.open("GET", url, true);
     xhr.onerror = evt => reject(evt.error);
     xhr.responseType = "document";
     xhr.onload = evt => {
       if (xhr.status !== 200) {
+        console.error("Reader mode XHR failed with status: " + xhr.status);
         callback(null);
         return;
       }
-
       var doc = xhr.responseXML;
       callback(doc);
     }
     xhr.send();
   },
 
-  _readerParse: function Reader_readerParse(doc, callback) {
+  _readerParse: function(doc, callback) {
     var worker = new Worker("readerWorker.js");
     worker.onmessage = function (evt) {
       var article = evt.data;
@@ -98,7 +100,7 @@ var Reader = {
 
   // IndexedDB cache
 
-  getArticleFromCache: function Reader_getArticleFromCache(url, callback) {
+  _getArticleFromCache: function(url, callback) {
     this._getCacheDB(function(cacheDB) {
       if (!cacheDB) {
         callback(false);
@@ -119,7 +121,7 @@ var Reader = {
     }.bind(this));
   },
 
-  storeArticleInCache: function Reader_storeArticleInCache(article, callback) {
+  _storeArticleInCache: function(article, callback) {
     this._getCacheDB(function(cacheDB) {
       if (!cacheDB) {
         callback(false);
@@ -140,7 +142,7 @@ var Reader = {
     }.bind(this));
   },
 
-  removeArticleFromCache: function Reader_removeArticleFromCache(url, callback) {
+  _removeArticleFromCache: function(url, callback) {
     this._getCacheDB(function(cacheDB) {
       if (!cacheDB) {
         callback(false);
@@ -162,7 +164,7 @@ var Reader = {
   },
 
 
-  _getCacheDB: function Reader_getCacheDB(callback) {
+  _getCacheDB: function(callback) {
     if (this._cacheDB) {
       callback(this._cacheDB);
       return;

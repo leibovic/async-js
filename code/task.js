@@ -445,16 +445,7 @@ var Task = (function () {
 
         if ("name" in aException &&
             ERRORS_TO_REPORT.indexOf(aException.name) != -1) {
-
-          // We suspect that the exception is a programmer error, so we now
-          // display it using dump(). If the programmer handles errors correctly,
-          // they will either treat the error or log them somewhere.
-
-          console.error("*************************\n");
-          console.error("A coding exception was thrown and uncaught in a Task.\n\n");
-          console.error("Full message: " + aException + "\n");
-          console.error("Full stack: " + aException.stack + "\n");
-          console.error("*************************\n");
+          console.error(aException);
         }
       }
 
