@@ -33,7 +33,6 @@ var Reader = {
         });
       });
     } catch (e) {
-      console.error(e);
       callback(null);
     }
   },
@@ -45,7 +44,6 @@ var Reader = {
     xhr.responseType = "document";
     xhr.onload = (event) => {
       if (xhr.status !== 200) {
-        console.error("Reader mode XHR failed with status: " + xhr.status);
         callback(null);
         return;
       }
@@ -62,10 +60,7 @@ var Reader = {
       callback(article);
     };
 
-    worker.onerror = (event) => {
-      console.error("Error in worker: " + event.message);
-      callback(null);
-    };
+    worker.onerror = (event) => callback(null);
 
     // Hacks to get URI details, since we don't have nsIURI in web content.
     var l = document.createElement("a");
@@ -83,7 +78,6 @@ var Reader = {
         doc: new XMLSerializer().serializeToString(doc)
       });
     } catch (e) {
-      console.error(e);
       callback(null);
     }
   },
