@@ -5,22 +5,24 @@
 "use strict";
 
 // Inspired by:
-// http://hg.mozilla.org/mozilla-central/file/tip/toolkit/components/reader/ReaderMode.jsm
+// http://hg.mozilla.org/mozilla-central/file/3f4673b89e04/mobile/android/chrome/content/Reader.js
 
 var Reader = {
 
-  getArticle: Task.async(function* (url) {
-    var article = yield this._getArticleFromCache(url);
-    if (article) {
-      return article;
-    }
-
-    var doc = yield this._downloadDocument(url);
-    var article = yield this._parseDocument(doc);
-
-    yield this._storeArticleInCache(url, article);
-    return article;
-  }),
+  getArticle: function(url) {
+    // return this._getArticleFromCache(url).then((article) => {
+    //   return article;
+    // }, (reason) => {
+      return this._downloadDocument(url)
+        .then(this._parseDocument)
+        .then((article) => {
+          return this._storeArticleInCache(url, article)
+            .then(() => {
+              return article;
+            });
+        });
+    //});
+  },
 
   _downloadDocument: function(url) {
     return new Promise((resolve, reject) => {
@@ -73,34 +75,45 @@ var Reader = {
 
   // IndexedDB cache
 
-  _getArticleFromCache: Task.async(function* (url) {
-    var cacheDB = yield this._getCacheDB();
-    var transaction = cacheDB.transaction(cacheDB.objectStoreNames);
-    var articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
-    return yield this._dbRequest(articles.get(url));
-  }),
-
-  _storeArticleInCache: Task.async(function* (url, article) {
-    var cacheDB = yield this._getCacheDB();
-    var transaction = cacheDB.transaction(cacheDB.objectStoreNames, "readwrite");
-    var articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
-
-    // Use url as a key
-    article.url = url;
-    return yield this._dbRequest(articles.add(article));
-  }),
-
-  _removeArticleFromCache: Task.async(function* (url) {
-    var cacheDB = yield this._getCacheDB();
-    var transaction = cacheDB.transaction(cacheDB.objectStoreNames, "readwrite");
-    var articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
-    return yield this._dbRequest(articles.delete(url));
-  }),
-
-  _dbRequest: function(request) {
+  _getArticleFromCache: function(url) {
     return new Promise((resolve, reject) => {
-      request.onerror = (event) => reject(event.target.errorCode);
-      request.onsuccess = (event) => resolve(event.target.result);
+      this._getCacheDB().then((cacheDB) => {
+        var transaction = cacheDB.transaction(cacheDB.objectStoreNames);
+        var articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+        var request = articles.get(url);
+
+        request.onerror = (event) => reject(event.target.errorCode);
+        request.onsuccess = (event) => resolve(event.target.result);
+      });
+    });
+  },
+
+  _storeArticleInCache: function(url, article) {
+    return new Promise((resolve, reject) => {
+      this._getCacheDB().then((cacheDB) => {
+        var transaction = cacheDB.transaction(cacheDB.objectStoreNames, "readwrite");
+        var articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+
+        // Use url as a key
+        article.url = url;
+        var request = articles.add(article);
+
+        request.onerror = (event) => reject(event.target.errorCode);
+        request.onsuccess = (event) => resolve(event.target.result);
+      });
+    });
+  },
+
+  _removeArticleFromCache: function(url) {
+    return new Promise((resolve, reject) => {
+      this._getCacheDB().then((cacheDB) => {
+        var transaction = cacheDB.transaction(cacheDB.objectStoreNames, "readwrite");
+        var articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+        var request = articles.delete(url);
+
+        request.onerror = (event) => reject(event.target.errorCode);
+        request.onsuccess = (event) => resolve(event.target.result);
+      });
     });
   },
 

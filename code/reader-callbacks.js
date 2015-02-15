@@ -16,29 +16,20 @@ var Reader = {
           callback(article);
           return;
         }
-        this._downloadAndParseDocument(url, callback);
-      });
-    } catch (e) {
-      console.error(e);
-      callback(null);
-    }
-  },
-
-  _downloadAndParseDocument: function(url, callback) {
-    try {
-      this._downloadDocument(url, (doc) => {
-        if (!doc) {
-          callback(null);
-          return;
-        }
-
-        this._readerParse(doc, (article) => {
-          if (!article) {
+        this._downloadDocument(url, (doc) => {
+          if (!doc) {
             callback(null);
             return;
           }
-          this._storeArticleInCache(url, article, function(){});
-          callback(article);
+
+          this._parseDocument(doc, (article) => {
+            if (!article) {
+              callback(null);
+              return;
+            }
+            this._storeArticleInCache(url, article, function(){});
+            callback(article);
+          });
         });
       });
     } catch (e) {
@@ -64,7 +55,7 @@ var Reader = {
     xhr.send();
   },
 
-  _readerParse: function(doc, callback) {
+  _parseDocument: function(doc, callback) {
     var worker = new Worker("readerWorker.js");
     worker.onmessage = (event) => {
       var article = event.data;
