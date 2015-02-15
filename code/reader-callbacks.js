@@ -11,13 +11,13 @@ var Reader = {
 
   getArticle: function(url, callback) {
     try {
-      this._getArticleFromCache(url, function(article) {
+      this._getArticleFromCache(url, (article) => {
         if (article) {
           callback(article);
           return;
         }
         this._downloadAndParseDocument(url, callback);
-      }.bind(this));
+      });
     } catch (e) {
       console.error(e);
       callback(null);
@@ -26,21 +26,21 @@ var Reader = {
 
   _downloadAndParseDocument: function(url, callback) {
     try {
-      this._downloadDocument(url, function(doc) {
+      this._downloadDocument(url, (doc) => {
         if (!doc) {
           callback(null);
           return;
         }
 
-        this._readerParse(doc, function (article) {
+        this._readerParse(doc, (article) => {
           if (!article) {
             callback(null);
             return;
           }
           this._storeArticleInCache(url, article, function(){});
           callback(article);
-        }.bind(this));
-      }.bind(this));
+        });
+      });
     } catch (e) {
       console.error(e);
       callback(null);
@@ -50,9 +50,9 @@ var Reader = {
   _downloadDocument: function(url, callback) {
     var xhr = new XMLHttpRequest();
     xhr.open("GET", url, true);
-    xhr.onerror = evt => reject(evt.error);
+    xhr.onerror = (event) => reject(event.error);
     xhr.responseType = "document";
-    xhr.onload = evt => {
+    xhr.onload = (event) => {
       if (xhr.status !== 200) {
         console.error("Reader mode XHR failed with status: " + xhr.status);
         callback(null);
@@ -66,9 +66,14 @@ var Reader = {
 
   _readerParse: function(doc, callback) {
     var worker = new Worker("readerWorker.js");
-    worker.onmessage = function (evt) {
-      var article = evt.data;
+    worker.onmessage = (event) => {
+      var article = event.data;
       callback(article);
+    };
+
+    worker.onerror = (event) => {
+      console.error("Error in worker: " + event.message);
+      callback(null);
     };
 
     // Hacks to get URI details, since we don't have nsIURI in web content.
@@ -95,7 +100,7 @@ var Reader = {
   // IndexedDB cache
 
   _getArticleFromCache: function(url, callback) {
-    this._getCacheDB(function(cacheDB) {
+    this._getCacheDB((cacheDB) => {
       if (!cacheDB) {
         callback(false);
         return;
@@ -105,18 +110,13 @@ var Reader = {
       var articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
       var request = articles.get(url);
 
-      request.onerror = function(event) {
-        callback(null);
-      }.bind(this);
-
-      request.onsuccess = function(event) {
-        callback(event.target.result);
-      }.bind(this);
-    }.bind(this));
+      request.onerror = (event) => callback(null);
+      request.onsuccess = (event) => callback(event.target.result);
+    });
   },
 
   _storeArticleInCache: function(url, article, callback) {
-    this._getCacheDB(function(cacheDB) {
+    this._getCacheDB((cacheDB) => {
       if (!cacheDB) {
         callback(false);
         return;
@@ -129,18 +129,13 @@ var Reader = {
       article.url = url;
       var request = articles.add(article);
 
-      request.onerror = function(event) {
-        callback(false);
-      }.bind(this);
-
-      request.onsuccess = function(event) {
-        callback(true);
-      }.bind(this);
-    }.bind(this));
+      request.onerror = (event) => callback(false);
+      request.onsuccess = (event) => callback(true);
+    });
   },
 
   _removeArticleFromCache: function(url, callback) {
-    this._getCacheDB(function(cacheDB) {
+    this._getCacheDB((cacheDB) => {
       if (!cacheDB) {
         callback(false);
         return;
@@ -150,14 +145,9 @@ var Reader = {
       var articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
       var request = articles.delete(url);
 
-      request.onerror = function(event) {
-        callback(false);
-      }.bind(this);
-
-      request.onsuccess = function(event) {
-        callback(true);
-      }.bind(this);
-    }.bind(this));
+      request.onerror = (event) => callback(false);
+      request.onsuccess = (event) => callback(true);
+    });
   },
 
 
@@ -169,21 +159,19 @@ var Reader = {
 
     var request = window.indexedDB.open("about:reader", this.DB_VERSION);
 
-    request.onerror = function(event) {
+    request.onerror = (event) => {
       this._cacheDB = null;
       callback(null);
-    }.bind(this);
+    };
 
-    request.onsuccess = function(event) {
+    request.onsuccess = (event) => {
       this._cacheDB = event.target.result;
       callback(this._cacheDB);
-    }.bind(this);
+    };
 
-    request.onupgradeneeded = function(event) {
+    request.onupgradeneeded = (event) => {
       var cacheDB = event.target.result;
-
-      // Create the articles object store
       cacheDB.createObjectStore("articles", { keyPath: "url" });
-    }.bind(this);
+    };
   }
 };

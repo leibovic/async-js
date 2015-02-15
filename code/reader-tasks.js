@@ -26,9 +26,9 @@ var Reader = {
     return new Promise((resolve, reject) => {
       var xhr = new XMLHttpRequest();
       xhr.open("GET", url, true);
-      xhr.onerror = evt => reject(evt.error);
+      xhr.onerror = (event) => reject(event.error);
       xhr.responseType = "document";
-      xhr.onload = evt => {
+      xhr.onload = (event) => {
         if (xhr.status !== 200) {
           reject("Reader mode XHR failed with status: " + xhr.status);
           return;
@@ -43,14 +43,12 @@ var Reader = {
   _readerParse: function(doc) {
     return new Promise((resolve, reject) => {
       var worker = new Worker("readerWorker.js");
-      worker.onmessage = function (evt) {
-        var article = evt.data;
+      worker.onmessage = function (event) {
+        var article = event.data;
         resolve(article);
       };
 
-      worker.onerror = evt => {
-        reject("Error in worker: " + evt.message);
-      };
+      worker.onerror = (event) => reject("Error in worker: " + event.message);
 
       // Hacks to get URI details, since we don't have nsIURI in web content.
       var l = document.createElement("a");
@@ -101,8 +99,8 @@ var Reader = {
 
   _dbRequest: function(request) {
     return new Promise((resolve, reject) => {
-      request.onerror = event => reject(event.target.errorCode);
-      request.onsuccess = event => resolve(event.target.result);
+      request.onerror = (event) => reject(event.target.errorCode);
+      request.onsuccess = (event) => resolve(event.target.result);
     });
   },
 
@@ -115,20 +113,18 @@ var Reader = {
 
       var request = window.indexedDB.open("about:reader", 1);
 
-      request.onerror = event => {
+      request.onerror = (event) => {
         this._cacheDB = null;
         reject("Error getting cache DB");
       };
 
-      request.onsuccess = event => {
+      request.onsuccess = (event) => {
         this._cacheDB = event.target.result;
         resolve(this._cacheDB);
       };
 
-      request.onupgradeneeded = event => {
+      request.onupgradeneeded = (event) => {
         var cacheDB = event.target.result;
-
-        // Create the articles object store
         cacheDB.createObjectStore("articles", { keyPath: "url" });
       };
     });
