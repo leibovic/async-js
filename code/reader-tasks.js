@@ -18,9 +18,7 @@ var Reader = {
     var doc = yield this._downloadDocument(url);
     var article = yield this._readerParse(doc);
 
-    article.url = url;
-    yield this._storeArticleInCache(article);
-
+    yield this._storeArticleInCache(url, article);
     return article;
   }),
 
@@ -84,10 +82,13 @@ var Reader = {
     return yield this._dbRequest(articles.get(url));
   }),
 
-  _storeArticleInCache: Task.async(function* (article) {
+  _storeArticleInCache: Task.async(function* (url, article) {
     var cacheDB = yield this._getCacheDB();
     var transaction = cacheDB.transaction(cacheDB.objectStoreNames, "readwrite");
     var articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+
+    // Use url as a key
+    article.url = url;
     return yield this._dbRequest(articles.add(article));
   }),
 

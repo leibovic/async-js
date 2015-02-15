@@ -11,15 +11,11 @@ var Reader = {
 
   getArticle: function(url, callback) {
     try {
-      // First, try to find a cached parsed article in the DB
       this._getArticleFromCache(url, function(article) {
         if (article) {
           callback(article);
           return;
         }
-
-        // Article hasn't been found in the cache DB, we need to
-        // download the page and parse the article out of it.
         this._downloadAndParseDocument(url, callback);
       }.bind(this));
     } catch (e) {
@@ -41,9 +37,7 @@ var Reader = {
             callback(null);
             return;
           }
-
-          article.url = url;
-          this._storeArticleInCache(article, function(){});
+          this._storeArticleInCache(url, article, function(){});
           callback(article);
         }.bind(this));
       }.bind(this));
@@ -121,7 +115,7 @@ var Reader = {
     }.bind(this));
   },
 
-  _storeArticleInCache: function(article, callback) {
+  _storeArticleInCache: function(url, article, callback) {
     this._getCacheDB(function(cacheDB) {
       if (!cacheDB) {
         callback(false);
@@ -130,6 +124,9 @@ var Reader = {
 
       var transaction = cacheDB.transaction(cacheDB.objectStoreNames, "readwrite");
       var articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+
+      // Use url as a key
+      article.url = url;
       var request = articles.add(article);
 
       request.onerror = function(event) {
