@@ -1,33 +1,214 @@
 <!DOCTYPE html>
 
 <meta charset="utf-8">
-<title>Simplifying Asynchronous JS with the Power of `yield`</title>
+<title>Simplifying Async JS with the Power of `yield`</title>
 
 <!-- Your Slides -->
 <!-- One section is one slide -->
 
 <section>
     <!-- This is the first slide -->
-    <h1>Simplifying Asynchronous JS with the Power of `yield`</h1>
+    <h1>Simplifying Async JS with the Power of <span class="hljs-keyword code">yield</span></h1>
     <footer>
       <div>Margaret Leibovic • @mleibovic</div>
       <div>Mozilla</div>
     </footer>
 </section>
 
+
 <section>
-  <h2>
-  </h2>
+  <h2>JavaScript is <br><span class="hljs-built_in">event-driven</span></h2>
 </section>
 
 <section>
-  <h3></h3>
+  <h3>What does that actually mean?</h3>
+  <ul class="incremental">
+    <li>Non-blocking I/O
+      <ul>
+        <li>HTTP requests
+        <li>Database operations
+        <li>Disk reads/writes
+      </ul>
+    </li>
+    <li>Event loop
+    <li>Callback functions!
+  </ul>
+</section>
+
+<section>
+  <h3>Callback function</h3>
+<pre><code class="javascript">
+request('http://www.google.com', function(error, res, body) {
+  console.log(body);
+});
+ 
+console.log('Done!');
+</pre></code>
+<span class="credit">Code from <a href="http://blog.carbonfive.com/2013/10/27/the-javascript-event-loop-explained/">blog.carbonfive.com</a></span>
+</section>
+
+<section>
+  <h3>Callback hell</h3>
+<pre><code class="javascript">
+fs.readdir(source, function(err, files) {
+  if (err) {
+    console.log('Error finding files: ' + err)
+  } else {
+    files.forEach(function(filename, fileIndex) {
+      console.log(filename)
+      gm(source + filename).size(function(err, values) {
+        if (err) {
+          console.log('Error identifying file size: ' + err)
+        } else {
+          console.log(filename + ' : ' + values)
+          aspect = (values.width / values.height)
+          widths.forEach(function(width, widthIndex) {
+            height = Math.round(width / aspect)
+            console.log('resizing ' + filename + 'to ' + height + 'x' + height)
+            this.resize(width, height).write(destination + 'w' + width + '_' + filename, function(err) {
+              if (err) console.log('Error writing file: ' + err)
+            })
+          }.bind(this))
+        }
+      })
+    })
+  }
+})
+</pre></code>
+<span class="credit">Code from <a href="http://callbackhell.com/">callbackhell.com</a></span>
+</section>
+
+<section>
+  <h3>Problems with callbacks</h3>
+  <ul class="incremental">
+    <li>Error handling
+    <li>Memory leaks
+    <li>Race conditions
+    <li>Hard to reason about code
+  </ul>
+</section>
+
+<section>
+  <img src="img/firefox.png" class="center"/>
+</section>
+
+<section>
+  <h3>Developing the Firefox UI</h3>
+  <ul class="incremental">
+    <li>Web technologies* <div class="disclaimer">* Plus XUL (desktop) and native UI (Android)</div>
+    <li>Privleged JS APIs
+    <li>JS only needs to work in the latest version of Firefox ☺
+  </ul>
+</section>
+
+<section>
+  <h4>Firefox Reader Mode</h4>
+  <div class="screenshot-container">
+    <img class="screenshot" src="img/reader1.png"/>
+    <img class="screenshot" src="img/reader2.png"/>
+  </div>
+
+</section>
+
+<section>
+  <h3>Firefox Reader Mode</h3>
+  <ul class="incremental">
+    <li>Stripped-down view of web content
+    <li>Implemented a few years ago for Android
+    <li>Recently refactored to work on desktop as well
+  </ul>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+var url = "http://foo.com/someArticle.html";
+getArticle(url, function(article) {
+  // Fill in a pretty article view
+});
+</code></pre>
+</section>
+
+<section>
+  <h3 class="code">getArticle</h3>
+  <ul class="incremental">
+    <li>Check if article is in cache
+    <li>Download document if necessary
+    <li>Parse document in a worker
+    <li>Store article in cache
+  </ul>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+function getArticle(url, callback) {
+  getArticleFromCache(url, (article) => {
+    if (article) {
+      callback(article);
+      return;
+    }
+    downloadDocument(url, (doc) => {
+      parseDocument(doc, (article) => {
+        storeArticleInCache(url, article);
+        callback(article);
+      });
+    });
+  });
+}
+</code></pre>
+<span class="credit">See original at <a href="http://hg.mozilla.org/mozilla-central/file/3f4673b89e04/mobile/android/chrome/content/Reader.js#l190">hg.mozilla.org</a></span>
+</section>
+
+<section>
+  <h3>Real world problems</h3>
+  <ul class="incremental">
+    <li>Inconsistent error handling
+    <li>Redundant logic in different functions
+    <li>Implicit state makes functions hard to repurpose
+    <li>Hard to write unit tests
+  </ul>
+</section>
+
+<section>
+  <h2>What if we could get rid of these dang callbacks?</h2>
+</section>
+
+
+<section class="code-only">
+<pre><code class="javascript">
+var getArticle = Task.async(function* (url) {
+  var article = yield getArticleFromCache(url);
+  if (article) {
+    return article;
+  }
+
+  var doc = yield downloadDocument(url);
+  var article = yield parseDocument(doc);
+
+  storeArticleInCache(url, article);
+  return article;
+});
+</code></pre>
+<span class="credit">See original at <a href="http://hg.mozilla.org/mozilla-central/file/09f4968d5f42/toolkit/components/reader/ReaderMode.jsm#l88">hg.mozilla.org</a></span>
+</section>
+
+<section>
+  <h3>task.js</h3>
+  <ul class="incremental">
+    <li>Tasks are interleaved like threads, but cooperative rather than pre-emptive
+    <li>Tasks use <code class="hljs-keyword">yield</code> to block on promises
+  </ul>
+<span class="credit">Original library at <a href="http://taskjs.org/">taskjs.org</a></span>
+</section>
+
+<section>
+  <h3>Generators</h3>
   <ul class="incremental">
     <li>
   </ul>
 </section>
 
-<section>
+
+<section class="code-only">
 <pre><code class="javascript">
 function* foo(x) {
   yield x + 1;
@@ -40,10 +221,130 @@ var gen = foo(5);
 gen.next(); // { value: 6, done: false }
 gen.next(); // { value: null, done: false }
 gen.send(8); // { value: 13, done: true }
+</code></pre>
+<span class="credit">Code from <a href="http://jlongster.com/A-Study-on-Solving-Callbacks-with-JavaScript-Generators">jlongster.com</a></span>
+</section>
+
+<section>
+  <h3>Promises</h3>
+  <ul class="incremental">
+    <li>
+  </ul>
+</section>
 
 
+<section class="code-only">
+<pre><code class="javascript">
+var p = new Promise(function(resolve, reject) {
+  var success = doSomething();
+  if (success) {
+    resolve("Success!");
+  } else {
+    reject ("Error!");
+  }
+});
+
+p.then(function(value) {
+  console.log(value); // Success!
+}, function(reason) {
+  console.log(reason); // Error!
+});
 </code></pre>
 </section>
+
+<section>
+  <h2><span class="hljs-built_in">Tasks</span> are <span class="hljs-keyword">generators</span> that emit <span class="hljs-keyword">promises</span></h2>
+</section>
+
+
+<section>
+  <h3><code>Task.spawn()</code></h3>
+  <ul class="incremental">
+    <li>Takes a generator function and starts running it as a task
+    <li>Every time the task yields a promise, it waits until the promise is fulfilled
+    <li>Returns a promise that is resolved when the task completes successfully
+  </ul>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+Task.spawn(function* () {
+  var result = yield promiseSomeValue();
+
+  for (var i = 0; i < 3; i++) {
+    result += yield promiseAnotherValue();
+  }
+
+  return result;
+}).then(function (result) {
+  console.log(result);
+}, function (exception) {
+  console.error(exception);
+});
+</code></pre>
+<span class="credit">Code from <a href="http://hg.mozilla.org/mozilla-central/file/09f4968d5f42/toolkit/modules/Task.jsm/">hg.mozilla.org</a></span>
+</section>
+
+<section>
+  <h3><code>Task.async()</code></h3>
+  <ul class="incremental">
+    <li>Returns an "async" function that starts a new task
+    <li>Simplifies the common pattern of implementing a method via a task
+  </ul>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+var greeter = {
+  msg: "Hello, NAME!",
+  greet: Task.async(function* (name) {
+    return yield sendGreeting(this.msg.replace(/NAME/, name));
+  })
+};
+
+greeter.greet("Margaret").then(...);
+</code></pre>
+<span class="credit">Code from <a href="http://hg.mozilla.org/mozilla-central/file/09f4968d5f42/toolkit/modules/Task.jsm/">hg.mozilla.org</a></span>
+</section>
+
+<section>
+  <h2>So, let's come back to our example</h2>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+var getArticle = Task.async(function* (url) {
+  var article = yield getArticleFromCache(url);
+  if (article) {
+    return article;
+  }
+
+  var doc = yield downloadDocument(url);
+  var article = yield parseDocument(doc);
+
+  storeArticleInCache(url, article);
+  return article;
+});
+</code></pre>
+<span class="credit">See original at <a href="http://hg.mozilla.org/mozilla-central/file/09f4968d5f42/toolkit/components/reader/ReaderMode.jsm#l88">hg.mozilla.org</a></span>
+</section>
+
+
+<section>
+  <h3>Benefits of tasks</h3>
+  <ul class="incremental">
+    <li>
+  </ul>
+</section>
+
+<section>
+  <h3>Writing tests with tasks</h3>
+  <ul class="incremental">
+    <li>
+  </ul>
+</section>
+
+
 
 <!-- Your Style -->
 <!-- Define the style of your presentation -->
@@ -53,7 +354,7 @@ gen.send(8); // { value: 13, done: true }
 
 <style>
   html, .view body { background-color: black; counter-reset: slideidx; }
-  body, .view section { background-color: white; border-radius: 12px }
+  body, .view section { background-color: #1D1F21; color: white; border-radius: 12px }
   /* A section is a slide. It's size is 800x600, and this will never change */
   section, .view head > title {
       /* The font from Google */
@@ -77,12 +378,14 @@ gen.send(8); // { value: 13, done: true }
   h1, h2 {
     margin-top: 200px;
     text-align: center;
-    font-size: 80px;
+    font-size: 70px;
   }
   h3 {
     margin: 100px 0 50px 100px;
   }
-
+  h4 {
+    margin: 30px 0 30px 50px;
+  }
   ul {
       margin: 50px 200px;
   }
@@ -133,8 +436,8 @@ gen.send(8); // { value: 13, done: true }
     width: 100%;
     padding: 30px;
     text-align: right;
-    background-color: #F3F4F8;
-    border-top: 1px solid #CCC;
+    background-color: white;
+    color: #1D1F21;
   }
 
   /* Transition effect */
@@ -189,6 +492,53 @@ gen.send(8); // { value: 13, done: true }
     margin-left: auto;
     margin-right: auto;
   }
+
+  code, .code {
+    font-family: Monaco;
+  }
+
+  pre {
+    font-size: 20px;
+    padding: 0 20px;
+  }
+
+  .code-only {
+    display: table;
+  }
+
+  .code-only > pre {
+    display: table-cell;
+    vertical-align: middle;
+  }
+
+  .credit {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 12px;
+    color: white;
+  }
+
+  .credit > a {
+    color: #B294BB;
+  }
+
+  .screenshot-container {
+    padding: 0 50px;
+  }
+  .screenshot {
+    max-width: 280px;
+    float: left;
+    margin-right: 50px;
+  }
+
+  .disclaimer {
+    font-size: 20px;
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+  }
+
 </style>
 
 <!-- {{{{ dzslides core
@@ -667,103 +1017,7 @@ gen.send(8); // { value: 13, done: true }
 
 </script>
 
-<style>
-/* Tomorrow Night Theme */
-/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
-/* Original theme - https://github.com/chriskempson/tomorrow-theme */
-/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
-
-/* Tomorrow Comment */
-.hljs-comment {
-  color: #969896;
-}
-
-/* Tomorrow Red */
-.hljs-variable,
-.hljs-attribute,
-.hljs-tag,
-.hljs-regexp,
-.ruby .hljs-constant,
-.xml .hljs-tag .hljs-title,
-.xml .hljs-pi,
-.xml .hljs-doctype,
-.html .hljs-doctype,
-.css .hljs-id,
-.css .hljs-class,
-.css .hljs-pseudo {
-  color: #cc6666;
-}
-
-/* Tomorrow Orange */
-.hljs-number,
-.hljs-preprocessor,
-.hljs-pragma,
-.hljs-built_in,
-.hljs-literal,
-.hljs-params,
-.hljs-constant {
-  color: #de935f;
-}
-
-/* Tomorrow Yellow */
-.ruby .hljs-class .hljs-title,
-.css .hljs-rules .hljs-attribute {
-  color: #f0c674;
-}
-
-/* Tomorrow Green */
-.hljs-string,
-.hljs-value,
-.hljs-inheritance,
-.hljs-header,
-.ruby .hljs-symbol,
-.xml .hljs-cdata {
-  color: #b5bd68;
-}
-
-/* Tomorrow Aqua */
-.hljs-title,
-.css .hljs-hexcolor {
-  color: #8abeb7;
-}
-
-/* Tomorrow Blue */
-.hljs-function,
-.python .hljs-decorator,
-.python .hljs-title,
-.ruby .hljs-function .hljs-title,
-.ruby .hljs-title .hljs-keyword,
-.perl .hljs-sub,
-.javascript .hljs-title,
-.coffeescript .hljs-title {
-  color: #81a2be;
-}
-
-/* Tomorrow Purple */
-.hljs-keyword,
-.javascript .hljs-function {
-  color: #b294bb;
-}
-
-.hljs {
-  display: block;
-  overflow-x: auto;
-  background: #1d1f21;
-  color: #c5c8c6;
-  padding: 0.5em;
-  -webkit-text-size-adjust: none;
-}
-
-.coffeescript .javascript,
-.javascript .xml,
-.tex .hljs-formula,
-.xml .javascript,
-.xml .vbscript,
-.xml .css,
-.xml .hljs-cdata {
-  opacity: 0.5;
-}
-</style>
-<script src="http://yandex.st/highlightjs/8.0/highlight.min.js"></script>
+<link rel="stylesheet" href="highlight/styles/tomorrow-night.css">
+<script src="highlight/highlight.pack.js"></script>
 <script>hljs.initHighlightingOnLoad();</script>
 <!-- vim: set fdm=marker: }}} -->

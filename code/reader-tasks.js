@@ -18,7 +18,7 @@ var Reader = {
     var doc = yield this._downloadDocument(url);
     var article = yield this._parseDocument(doc);
 
-    yield this._storeArticleInCache(url, article);
+    this._storeArticleInCache(url, article).catch(e => console.error(e));
     return article;
   }),
 

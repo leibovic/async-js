@@ -10,31 +10,26 @@
 var Reader = {
 
   getArticle: function(url, callback) {
-    try {
-      this._getArticleFromCache(url, (article) => {
-        if (article) {
-          callback(article);
+    this._getArticleFromCache(url, (article) => {
+      if (article) {
+        callback(article);
+        return;
+      }
+      this._downloadDocument(url, (doc) => {
+        if (!doc) {
+          callback(null);
           return;
         }
-        this._downloadDocument(url, (doc) => {
-          if (!doc) {
+        this._parseDocument(doc, (article) => {
+          if (!article) {
             callback(null);
             return;
           }
-
-          this._parseDocument(doc, (article) => {
-            if (!article) {
-              callback(null);
-              return;
-            }
-            this._storeArticleInCache(url, article, function(){});
-            callback(article);
-          });
+          this._storeArticleInCache(url, article, function(){});
+          callback(article);
         });
       });
-    } catch (e) {
-      callback(null);
-    }
+    });
   },
 
   _downloadDocument: function(url, callback) {
