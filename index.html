@@ -23,14 +23,14 @@
 <section>
   <h3>What does that actually mean?</h3>
   <ul class="incremental">
-    <li>Non-blocking I/O
-      <ul>
-        <li>HTTP requests
-        <li>Database operations
-        <li>Disk reads/writes
-      </ul>
-    </li>
-    <li>Event loop
+    <li>JS is single-threaded
+    <li>But we need non-blocking I/O
+    <ul>
+      <li>HTTP requests
+      <li>Database operations
+      <li>Disk reads/writes
+    </ul>
+    <li>Event loop* <div class="disclaimer">*There's a <a href="https://www.youtube.com/watch?v=8aGhZQkoFbQ">great talk</a> about this by Philip Roberts
     <li>Callback functions!
   </ul>
 </section>
@@ -169,7 +169,7 @@ function getArticle(url, callback) {
 </section>
 
 <section>
-  <h2>What if we could get rid of these dang callbacks?</h2>
+  <h2>How can we fix these issues?</h2>
 </section>
 
 
@@ -203,10 +203,12 @@ var getArticle = Task.async(function* (url) {
 <section>
   <h3>Generators</h3>
   <ul class="incremental">
-    <li>
+    <li>Functions that can be exited and later re-entered
+    <li>Calling a generator function returns an iterator
+    <li>Function execution will pause at <code class="hljs-keyword">yield</code> statements
   </ul>
+<span class="credit">Reference at <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*">developer.mozilla.org</a></span>
 </section>
-
 
 <section class="code-only">
 <pre><code class="javascript">
@@ -228,8 +230,10 @@ gen.send(8); // { value: 13, done: true }
 <section>
   <h3>Promises</h3>
   <ul class="incremental">
-    <li>
+    <li>Placeholder for the eventual results of a deferred computation
+    <li>Allows you to associate handlers to an asynchronous action's eventual success or failure
   </ul>
+<span class="credit">Reference at <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise">developer.mozilla.org</a></span>
 </section>
 
 
@@ -255,7 +259,6 @@ p.then(function(value) {
 <section>
   <h2><span class="hljs-built_in">Tasks</span> are <span class="hljs-keyword">generators</span> that emit <span class="hljs-keyword">promises</span></h2>
 </section>
-
 
 <section>
   <h3><code>Task.spawn()</code></h3>
@@ -308,7 +311,7 @@ greeter.greet("Margaret").then(...);
 </section>
 
 <section>
-  <h2>So, let's come back to our example</h2>
+  <h2>Let's come back to our example</h2>
 </section>
 
 <section class="code-only">
@@ -329,18 +332,56 @@ var getArticle = Task.async(function* (url) {
 <span class="credit">See original at <a href="http://hg.mozilla.org/mozilla-central/file/09f4968d5f42/toolkit/components/reader/ReaderMode.jsm#l88">hg.mozilla.org</a></span>
 </section>
 
+<section>
+  <h3>Unit testing with tasks</h3>
+  <ul class="incremental">
+    <li>Tests can run asynchronously
+    <li>Easier to check intermediary state
+    <li>Easier to verify test logic
+  </ul>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+add_task(function* test() {
+  var result = yield Promise.resolve(true);
+  do_check_true(result);
+
+  var secondary = yield someFunctionThatReturnsAPromise(result);
+  do_check_eq(secondary, "expected value");
+});
+</code></pre>
+<span class="credit">See original at <a href="http://hg.mozilla.org/mozilla-central/file/09f4968d5f42/mobile/android/base/tests/testReadingListCache.js">hg.mozilla.org</a></span>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+add_task(function* test_parse_articles() {
+  for (var testcase of TEST_PAGES) {
+    var article = yield getArticle(testcase.url);
+    checkArticle(article, testcase);
+  }
+});
+</code></pre>
+<span class="credit">See original at <a href="http://hg.mozilla.org/mozilla-central/file/09f4968d5f42/mobile/android/base/tests/testReadingListCache.js">hg.mozilla.org</a></span>
+</section>
 
 <section>
   <h3>Benefits of tasks</h3>
   <ul class="incremental">
-    <li>
+    <li>Errors propegation
+    <li>Increased modularity
+    <li>Unit-test-ability
+    <li>Code maintainability
   </ul>
 </section>
 
 <section>
-  <h3>Writing tests with tasks</h3>
-  <ul class="incremental">
-    <li>
+  <h3>Thanks!</h3>
+  <ul>
+    <li>Twitter: <a href="https://twitter.com/mleibovic">@mleibovic</a>
+    <li>Slides: <a href="https://leibovic.github.io/async-js">https://leibovic.github.io/async-js</a>
+    <li>Sample code: <a href="https://github.com/leibovic/async-js/code/">https://github.com/leibovic/async-js/code/</a>
   </ul>
 </section>
 
@@ -519,6 +560,8 @@ var getArticle = Task.async(function* (url) {
     color: white;
   }
 
+  li > a,
+  .disclaimer > a,
   .credit > a {
     color: #B294BB;
   }

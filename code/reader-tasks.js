@@ -5,7 +5,7 @@
 "use strict";
 
 // Inspired by:
-// http://hg.mozilla.org/mozilla-central/file/tip/toolkit/components/reader/ReaderMode.jsm
+// http://hg.mozilla.org/mozilla-central/file/09f4968d5f42/toolkit/components/reader/ReaderMode.jsm
 
 var Reader = {
 
