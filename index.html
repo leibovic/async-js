@@ -15,24 +15,72 @@
     </footer>
 </section>
 
-
 <section>
-  <h2>JavaScript is <br><span class="hljs-built_in">event-driven</span></h2>
+  <img src="img/firefox.png" class="center"/>
 </section>
 
 <section>
-  <h3>What does that actually mean?</h3>
+  <h3>Developing the Firefox UI</h3>
   <ul class="incremental">
-    <li>JS is single-threaded
-    <li>But we need non-blocking I/O
+    <li>Web technologies
+    <li>Privleged JS APIs
+    <li>JS only needs to work in the latest version of Firefox ☺
+  </ul>
+</section>
+
+<section>
+  <h3>What I'm going to talk about tonight</h3>
+  <ul class="incremental">
+    <li>JS callbacks and their downsides
+    <li>Promises, generators, and task.js
+    <li>Example of how we use these tools for Firefox Reader Mode
+  </ul>
+</section>
+
+<section>
+  <h4>Firefox Reader Mode</h4>
+  <div class="screenshot-container">
+    <img class="screenshot" src="img/reader1.png"/>
+    <img class="screenshot" src="img/reader2.png"/>
+  </div>
+</section>
+
+<section>
+  <h3>Firefox Reader Mode</h3>
+  <ul class="incremental">
+    <li>Stripped-down view of web content
+    <li>Implemented a few years ago for Android
+    <li>Recently refactored to work on desktop as well
+  </ul>
+</section>
+
+<section>
+  <h2>Callback functions</h2>
+</section>
+
+<section>
+  <h3>JavaScript is event-driven</h3>
+  <ul class="incremental">
+    <li>We want non-blocking I/O
     <ul>
       <li>HTTP requests
       <li>Database operations
       <li>Disk reads/writes
     </ul>
-    <li>Event loop* <div class="disclaimer">*There's a <a href="https://www.youtube.com/watch?v=8aGhZQkoFbQ">great talk</a> about this by Philip Roberts
-    <li>Callback functions!
+    <li>But JS is single-threaded
+    <li>Solution: callback functions and the event loop
   </ul>
+</section>
+
+<section>
+  <h3>The event loop</h3>
+  <ul class="incremental">
+    <li>Queue of messages with associated callback functions
+    <li>Messages queued in response to external events
+    <li>Each poll of the queue is referred to as a "tick"
+    <li>Polling pauses while each callback runs
+  </ul>
+  <span class="credit">More details at <a href="http://blog.carbonfive.com/2013/10/27/the-javascript-event-loop-explained/">blog.carbonfive.com</a></span>
 </section>
 
 <section>
@@ -81,42 +129,14 @@ fs.readdir(source, function(err, files) {
 <section>
   <h3>Problems with callbacks</h3>
   <ul class="incremental">
-    <li>Error handling
-    <li>Memory leaks
+    <li>Error handling is cumbersome
     <li>Race conditions
     <li>Hard to reason about code
   </ul>
 </section>
 
 <section>
-  <img src="img/firefox.png" class="center"/>
-</section>
-
-<section>
-  <h3>Developing the Firefox UI</h3>
-  <ul class="incremental">
-    <li>Web technologies* <div class="disclaimer">* Plus XUL (desktop) and native UI (Android)</div>
-    <li>Privleged JS APIs
-    <li>JS only needs to work in the latest version of Firefox ☺
-  </ul>
-</section>
-
-<section>
-  <h4>Firefox Reader Mode</h4>
-  <div class="screenshot-container">
-    <img class="screenshot" src="img/reader1.png"/>
-    <img class="screenshot" src="img/reader2.png"/>
-  </div>
-
-</section>
-
-<section>
-  <h3>Firefox Reader Mode</h3>
-  <ul class="incremental">
-    <li>Stripped-down view of web content
-    <li>Implemented a few years ago for Android
-    <li>Recently refactored to work on desktop as well
-  </ul>
+  <h2>Example: Reader Mode with callbacks</h2>
 </section>
 
 <section class="code-only">
@@ -158,6 +178,44 @@ function getArticle(url, callback) {
 <span class="credit">See original at <a href="http://hg.mozilla.org/mozilla-central/file/3f4673b89e04/mobile/android/chrome/content/Reader.js#l190">hg.mozilla.org</a></span>
 </section>
 
+<section class="code-only">
+<pre><code class="javascript">
+function downloadDocument(url, callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", url, true);
+  xhr.onerror = (event) => reject(event.error);
+  xhr.responseType = "document";
+  xhr.onload = (event) => {
+    if (xhr.status !== 200) {
+      callback(null);
+      return;
+    }
+    var doc = xhr.responseXML;
+    callback(doc);
+  }
+  xhr.send();
+}
+</code></pre>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+function parseDocument(doc, callback) {
+  var worker = new Worker("readerWorker.js");
+  worker.onmessage = (event) => {
+    var article = event.data;
+    callback(article);
+  };
+
+  worker.onerror = (event) => callback(null);
+  worker.postMessage({
+    uri: { ... },
+    doc: new XMLSerializer().serializeToString(doc)
+  });
+}
+</code></pre>
+</section>
+
 <section>
   <h3>Real world problems</h3>
   <ul class="incremental">
@@ -169,73 +227,23 @@ function getArticle(url, callback) {
 </section>
 
 <section>
-  <h2>How can we fix these issues?</h2>
-</section>
-
-
-<section class="code-only">
-<pre><code class="javascript">
-var getArticle = Task.async(function* (url) {
-  var article = yield getArticleFromCache(url);
-  if (article) {
-    return article;
-  }
-
-  var doc = yield downloadDocument(url);
-  var article = yield parseDocument(doc);
-
-  storeArticleInCache(url, article);
-  return article;
-});
-</code></pre>
-<span class="credit">See original at <a href="http://hg.mozilla.org/mozilla-central/file/09f4968d5f42/toolkit/components/reader/ReaderMode.jsm#l88">hg.mozilla.org</a></span>
+  <h2>By the end of this talk, we're going to fix this!</h2>
 </section>
 
 <section>
-  <h3>task.js</h3>
-  <ul class="incremental">
-    <li>Tasks are interleaved like threads, but cooperative rather than pre-emptive
-    <li>Tasks use <code class="hljs-keyword">yield</code> to block on promises
-  </ul>
-<span class="credit">Original library at <a href="http://taskjs.org/">taskjs.org</a></span>
-</section>
-
-<section>
-  <h3>Generators</h3>
-  <ul class="incremental">
-    <li>Functions that can be exited and later re-entered
-    <li>Calling a generator function returns an iterator
-    <li>Function execution will pause at <code class="hljs-keyword">yield</code> statements
-  </ul>
-<span class="credit">Reference at <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*">developer.mozilla.org</a></span>
-</section>
-
-<section class="code-only">
-<pre><code class="javascript">
-function* foo(x) {
-  yield x + 1;
-
-  var y = yield null;
-  return x + y;
-}
-
-var gen = foo(5);
-gen.next(); // { value: 6, done: false }
-gen.next(); // { value: null, done: false }
-gen.send(8); // { value: 13, done: true }
-</code></pre>
-<span class="credit">Code from <a href="http://jlongster.com/A-Study-on-Solving-Callbacks-with-JavaScript-Generators">jlongster.com</a></span>
+  <h2>ES6 Lesson Time: Promises</h2>
 </section>
 
 <section>
   <h3>Promises</h3>
   <ul class="incremental">
-    <li>Placeholder for the eventual results of a deferred computation
-    <li>Allows you to associate handlers to an asynchronous action's eventual success or failure
+    <li>Objects that represent a future value (i.e. a promised value)
+    <li>Promises can be "pending", "fulfilled" or "rejected"
+    <li>Methods to handle fulfillment/rejection
+    <li>Promises can also be chained together
   </ul>
 <span class="credit">Reference at <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise">developer.mozilla.org</a></span>
 </section>
-
 
 <section class="code-only">
 <pre><code class="javascript">
@@ -244,28 +252,189 @@ var p = new Promise(function(resolve, reject) {
   if (success) {
     resolve("Success!");
   } else {
-    reject ("Error!");
+    reject("Error!");
   }
 });
+</code></pre>
+</section>
 
-p.then(function(value) {
+<section class="code-only">
+<pre><code class="javascript">
+p.then((value) => {
   console.log(value); // Success!
-}, function(reason) {
+}, (reason) => {
   console.log(reason); // Error!
 });
 </code></pre>
 </section>
 
+<section class="code-only">
+<pre><code class="javascript">
+p.catch((reason) => {
+  console.log(reason); // Error!
+});
+</code></pre>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+var p = new Promise(function(resolve, reject) {
+  resolve(1);
+});
+
+p.then((val) =>  {
+  console.log(val); // 1
+  return val + 2;
+}).then((val) => {
+  console.log(val); // 3
+});
+</code></pre>
+<span class="credit">Code from <a href="http://www.html5rocks.com/en/tutorials/es6/promises/#toc-chaining">html5rocks.com</a></span>
+</section>
+
 <section>
-  <h2><span class="hljs-built_in">Tasks</span> are <span class="hljs-keyword">generators</span> that emit <span class="hljs-keyword">promises</span></h2>
+  <h2>Example: Reader Mode with promises</h2>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+function downloadDocument(url) {
+  return new Promise((resolve, reject) => {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onerror = (event) => reject(event.error);
+    xhr.responseType = "document";
+    xhr.onload = (event) => {
+      if (xhr.status !== 200) {
+        reject("XHR failed with status: " + xhr.status);
+        return;
+      }
+      var doc = xhr.responseXML;
+      resolve(doc);
+    }
+    xhr.send();
+  });
+}
+</code></pre>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+function parseDocument(doc) {
+  return new Promise((resolve, reject) => {
+    var worker = new Worker("readerWorker.js");
+
+    worker.onmessage = function (event) {
+      var article = event.data;
+      resolve(article);
+    };
+
+    worker.onerror = (event) => reject(event.message);
+
+    worker.postMessage({
+      uri: { ... },
+      doc: new XMLSerializer().serializeToString(doc)
+    });
+  });
+}
+</code></pre>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+function getArticle(url) {
+  return getArticleFromCache(url).then((article) => {
+    if (article) {
+      return article;
+    }
+    return downloadDocument(url)
+      .then(parseDocument)
+      .then((article) => {
+        storeArticleInCache(url, article);
+        return article;
+      });
+  });
+}
+</code></pre>
+</section>
+
+<section>
+  <h2>ES6 Lesson Time: Generators</h2>
+</section>
+
+<section>
+  <h3>Generators</h3>
+  <ul class="incremental">
+    <li>Functions whose execution can be paused
+    <li>When paused, all runtime state is maintained
+    <li>Execution will pause at <code class="hljs-keyword">yield</code> statements
+  </ul>
+<span class="credit">Reference at <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*">developer.mozilla.org</a></span>
+</section>
+
+<section>
+  <h3>Iterators</h3>
+  <ul class="incremental">
+    <li>Calling a generator function returns an iterator
+    <li>Iterator has a <code>next()</code> method
+    <li><code>next()</code> returns an object with <code>value</code> and <code>done</code> properties
+    <li><code>next()</code> also lets you send values back into the generator
+  </ul>
+<span class="credit">Reference at <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*">developer.mozilla.org</a></span>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+function* foo() {
+  var index = 0;
+  while(true) {
+    yield index++;
+  }
+}
+
+var it = foo();
+it.next(); // { value: 0, done: false }
+it.next(); // { value: 1, done: false }
+it.next(); // { value: 2, done: false }
+</code></pre>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+function* foo(x) {
+  yield x + 1;
+
+  var y = yield;
+  return x + y;
+}
+
+var it = foo(5);
+it.next(); // { value: 6, done: false }
+it.next(); // { value: undefined, done: false }
+it.next(2); // { value: 7, done: true }
+</code></pre>
+</section>
+
+<section>
+  <h2>task.js</h2>
+</section>
+
+<section>
+  <h3>task.js</h3>
+  <ul class="incremental">
+    <li>"Tasks" are essentially generators that emit promises
+    <li>We use <code class="hljs-keyword">yield</code> to block on promise resolution
+    <li>Abstracts away iterating through generators
+  </ul>
+<span class="credit">Original library at <a href="http://taskjs.org/">taskjs.org</a></span>
 </section>
 
 <section>
   <h3><code>Task.spawn()</code></h3>
   <ul class="incremental">
-    <li>Takes a generator function and starts running it as a task
-    <li>Every time the task yields a promise, it waits until the promise is fulfilled
-    <li>Returns a promise that is resolved when the task completes successfully
+    <li>Takes a generator function and starts running it immediately
+    <li>When the generator yields a promise, waits for that promise to be fulfilled before resuming the generator
+    <li>Returns a promise that is resolved when the task is complete
   </ul>
 </section>
 
@@ -291,8 +460,8 @@ Task.spawn(function* () {
 <section>
   <h3><code>Task.async()</code></h3>
   <ul class="incremental">
+    <li>Convenience function for defining a function that starts a task
     <li>Returns an "async" function that starts a new task
-    <li>Simplifies the common pattern of implementing a method via a task
   </ul>
 </section>
 
@@ -311,7 +480,7 @@ greeter.greet("Margaret").then(...);
 </section>
 
 <section>
-  <h2>Let's come back to our example</h2>
+  <h2>Example: Reader mode with tasks</h2>
 </section>
 
 <section class="code-only">
@@ -330,6 +499,17 @@ var getArticle = Task.async(function* (url) {
 });
 </code></pre>
 <span class="credit">See original at <a href="http://hg.mozilla.org/mozilla-central/file/09f4968d5f42/toolkit/components/reader/ReaderMode.jsm#l88">hg.mozilla.org</a></span>
+</section>
+
+<section class="code-only">
+<pre><code class="javascript">
+var url = "http://foo.com/someArticle.html";
+getArticle(url).then((article) => {
+  // Fill in a pretty article view
+}, (error) => {
+  // Handle an error!
+});
+</code></pre>
 </section>
 
 <section>
@@ -369,10 +549,10 @@ add_task(function* test_parse_articles() {
 <section>
   <h3>Benefits of tasks</h3>
   <ul class="incremental">
-    <li>Errors propegation
     <li>Increased modularity
     <li>Unit-test-ability
-    <li>Code maintainability
+    <li>Error propagation
+    <li>Code readability
   </ul>
 </section>
 
